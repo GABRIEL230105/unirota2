@@ -1,0 +1,10 @@
+const express = require("express");
+const authMiddleware = require("../middlewares/authMiddleware");
+const rideParticipantController = require("../controllers/rideParticipantController");
+const router = express.Router();
+router.use(authMiddleware);
+router.post("/:rideId/join", rideParticipantController.joinRide);
+router.patch("/:rideId/cancel", rideParticipantController.cancelParticipation);
+router.get("/me/passenger", rideParticipantController.myPassengerRides);
+router.get("/me/driver", rideParticipantController.myDriverRides);
+module.exports = router;
