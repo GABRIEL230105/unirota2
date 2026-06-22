@@ -1,0 +1,228 @@
+/* RESET */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* PÁGINA */
+.login-page {
+  width: 100%;
+  min-height: 100vh;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* FUNDO COM IMAGEM */
+.login-hero {
+  width: 100%;
+  min-height: 100vh;
+
+  background:
+    linear-gradient(
+      rgba(255, 255, 255, 0.25),
+      rgba(0, 60, 45, 0.85)
+    ),
+    url("../../assets/bg.png");
+
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* CONTAINER CENTRAL */
+.hero-overlay {
+  width: 100%;
+  max-width: 1200px;
+  min-height: 100vh;
+  padding: 40px 20px;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+/* LOGO EM IMAGEM */
+.login-logo-img {
+  width: 240px;
+  max-width: 80%;
+  margin-bottom: 12px;
+  filter: drop-shadow(0 10px 25px rgba(0, 0, 0, 0.25));
+}
+
+/* TÍTULO */
+.hero-overlay h1 {
+  font-size: 64px;
+  color: #06283d;
+  font-weight: bold;
+}
+
+/* SUBTÍTULO */
+.subtitle {
+  text-transform: uppercase;
+  letter-spacing: 4px;
+  color: #06283d;
+  font-weight: bold;
+  margin-top: 5px;
+}
+
+/* FRASE */
+.slogan {
+  text-align: center;
+  margin: 25px 0;
+  font-size: 22px;
+  font-weight: bold;
+  color: #06283d;
+}
+
+.slogan span {
+  color: #138a42;
+}
+
+/* CARD */
+.login-card {
+  width: 100%;
+  max-width: 450px;
+  background: #ffffff;
+  border-radius: 25px;
+  padding: 35px;
+  margin-top: 20px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+}
+
+.login-card h2 {
+  text-align: center;
+  color: #06283d;
+  margin-bottom: 5px;
+}
+
+.login-card p {
+  text-align: center;
+  color: #6b7280;
+  margin-bottom: 25px;
+}
+
+/* INPUTS */
+.input-group {
+  margin-bottom: 15px;
+}
+
+.input-group input {
+  width: 100%;
+  height: 55px;
+  border: 1px solid #dcdfe4;
+  border-radius: 12px;
+  padding: 0 15px;
+  font-size: 15px;
+  outline: none;
+  transition: 0.2s;
+}
+
+.input-group input:focus {
+  border-color: #138a42;
+  box-shadow: 0 0 0 3px rgba(19, 138, 66, 0.15);
+}
+
+/* OPÇÕES */
+.login-options {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  color: #4b5563;
+  margin: 10px 0 20px;
+}
+
+.login-options label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.login-options a {
+  color: #138a42;
+  text-decoration: none;
+}
+
+/* BOTÃO */
+.login-btn {
+  width: 100%;
+  height: 55px;
+  border: none;
+  border-radius: 12px;
+  background: #138a42;
+  color: white;
+  font-size: 18px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: 0.3s;
+}
+
+.login-btn:hover {
+  background: #0f7337;
+}
+
+/* LINK */
+.register-link {
+  text-align: center;
+  margin-top: 20px;
+  color: #4b5563;
+}
+
+.register-link a {
+  color: #138a42;
+  font-weight: bold;
+  text-decoration: none;
+}
+
+/* BENEFÍCIOS */
+.benefits {
+  margin-top: 30px;
+  display: flex;
+  gap: 30px;
+  color: white;
+  text-align: center;
+}
+
+.benefits div {
+  display: flex;
+  flex-direction: column;
+}
+
+.benefits strong {
+  font-size: 16px;
+}
+
+.benefits span {
+  font-size: 13px;
+  opacity: 0.9;
+}
+
+/* RESPONSIVO */
+@media (max-width: 600px) {
+  .login-logo-img {
+    width: 190px;
+  }
+
+  .hero-overlay h1 {
+    font-size: 42px;
+  }
+
+  .login-card {
+    padding: 25px;
+  }
+
+  .benefits {
+    flex-direction: column;
+    gap: 15px;
+  }
+
+  .login-options {
+    flex-direction: column;
+  }
+}
