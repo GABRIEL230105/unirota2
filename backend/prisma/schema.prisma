@@ -7,61 +7,113 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum RideType {
+  OFERTA
+  SOLICITACAO
+}
+
+enum RideStatus {
+  PENDENTE
+  ACEITA
+  EM_ANDAMENTO
+  FINALIZADA
+  CANCELADA
+}
+
+enum ParticipantStatus {
+  CONFIRMADA
+  CANCELADA
+}
+
 model User {
-  id            String   @id @default(uuid())
-  name          String
-  email         String   @unique
-  password      String
-  course        String
-  shift         String
-  bio           String?
-  avatar        String?
-  verified      Boolean  @default(false)
+  id String @id @default(uuid())
 
-  rides             Ride[]
-  rideParticipants  RideParticipant[]
-  sentMessages      Message[] @relation("SentMessages")
-  receivedMessages  Message[] @relation("ReceivedMessages")
-  receivedRatings   Rating[] @relation("ReceivedRatings")
-  sentRatings       Rating[] @relation("SentRatings")
-  notifications     Notification[]
-  activities        Activity[]
+  name     String
+  email    String @unique
+  password String
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  course String
+  shift  String
+
+  bio    String?
+  avatar String?
+
+  // dados do veículo (só relevante se o aluno também oferece carona)
+  vehicleModel String?
+  vehicleColor String?
+  plate        String?
+
+  verified Boolean @default(false)
+
+  // caronas que este usuário publicou (motorista/autor)
+  rides Ride[] @relation("RideAuthor")
+
+  // caronas em que este usuário é o passageiro fixo do Ride
+  ridesAsPassenger Ride[] @relation("RidePassenger")
+
+  rideParticipants RideParticipant[]
+
+  sentMessages     Message[] @relation("SentMessages")
+  receivedMessages Message[] @relation("ReceivedMessages")
+
+  sentRatings     Rating[] @relation("SentRatings")
+  receivedRatings Rating[] @relation("ReceivedRatings")
+
+  notifications Notification[]
+  activities    Activity[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Ride {
-  id          String   @id @default(uuid())
-  type        String
+  id String @id @default(uuid())
+
+  type RideType
+
   origin      String
   destination String
-  date        String
-  time        String
-  seats       Int?
-  price       Float?
-  observation String?
-  status      String   @default("PENDENTE")
 
-  userId      String
-  user        User     @relation(fields: [userId], references: [id])
+  bairro String?
+  rua    String?
+  numero String?
+
+  latitude  Float?
+  longitude Float?
+
+  date String?
+  time String?
+
+  seats Int?
+  price Float?
+
+  observation String?
+
+  status RideStatus @default(PENDENTE)
+
+  userId String
+  user   User   @relation("RideAuthor", fields: [userId], references: [id])
+
+  passengerId String?
+  passenger   User?   @relation("RidePassenger", fields: [passengerId], references: [id])
 
   participants RideParticipant[]
   ratings      Rating[]
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model RideParticipant {
-  id        String   @id @default(uuid())
-  status    String   @default("CONFIRMADA")
+  id String @id @default(uuid())
 
-  rideId    String
-  ride      Ride     @relation(fields: [rideId], references: [id])
+  status ParticipantStatus @default(CONFIRMADA)
 
-  userId    String
-  user      User     @relation(fields: [userId], references: [id])
+  rideId String
+  ride   Ride   @relation(fields: [rideId], references: [id])
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -70,61 +122,65 @@ model RideParticipant {
 }
 
 model Message {
-  id          String   @id @default(uuid())
-  content     String
-  read        Boolean  @default(false)
+  id String @id @default(uuid())
 
-  senderId    String
-  sender      User     @relation("SentMessages", fields: [senderId], references: [id])
+  content String
+  read    Boolean @default(false)
 
-  receiverId  String
-  receiver    User     @relation("ReceivedMessages", fields: [receiverId], references: [id])
+  senderId String
+  sender   User   @relation("SentMessages", fields: [senderId], references: [id])
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  receiverId String
+  receiver   User   @relation("ReceivedMessages", fields: [receiverId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Rating {
-  id          String   @id @default(uuid())
-  score       Int
-  comment     String?
+  id String @id @default(uuid())
 
-  rideId      String
-  ride        Ride     @relation(fields: [rideId], references: [id])
+  score   Int
+  comment String?
+
+  rideId String
+  ride   Ride   @relation(fields: [rideId], references: [id])
 
   evaluatorId String
-  evaluator   User     @relation("SentRatings", fields: [evaluatorId], references: [id])
+  evaluator   User   @relation("SentRatings", fields: [evaluatorId], references: [id])
 
   evaluatedId String
-  evaluated   User     @relation("ReceivedRatings", fields: [evaluatedId], references: [id])
+  evaluated   User   @relation("ReceivedRatings", fields: [evaluatedId], references: [id])
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([rideId, evaluatorId, evaluatedId])
 }
 
 model Notification {
-  id        String   @id @default(uuid())
-  title     String
-  message   String
-  type      String
-  read      Boolean  @default(false)
+  id String @id @default(uuid())
 
-  userId    String
-  user      User     @relation(fields: [userId], references: [id])
+  title   String
+  message String
+  type    String
+  read    Boolean @default(false)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
 model Activity {
-  id        String   @id @default(uuid())
-  action    String
-  detail    String
+  id String @id @default(uuid())
 
-  userId    String
-  user      User     @relation(fields: [userId], references: [id])
+  action String
+  detail String
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
 
   createdAt DateTime @default(now())
 }

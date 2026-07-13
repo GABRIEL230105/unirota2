@@ -12,12 +12,16 @@ export const Register = () => {
   const [shift, setShift] = useState("");
   const [error, setError] = useState("");
 
+  const [temVeiculo, setTemVeiculo] = useState(false);
+  const [vehicleModel, setVehicleModel] = useState("");
+  const [vehicleColor, setVehicleColor] = useState("");
+  const [plate, setPlate] = useState("");
+
   const { signUp } = useContext(AuthContext);
   const navigate = useNavigate();
 
   const handleRegister = async (e) => {
     e.preventDefault();
-
     setError("");
 
     if (password.length < 6) {
@@ -25,13 +29,21 @@ export const Register = () => {
       return;
     }
 
-    const success = await signUp(
+    if (temVeiculo && (!vehicleModel.trim() || !vehicleColor.trim() || !plate.trim())) {
+      setError("Preencha modelo, cor e placa do veículo, ou desmarque a opção");
+      return;
+    }
+
+    const success = await signUp({
       name,
       email,
       password,
       course,
-      shift
-    );
+      shift,
+      vehicleModel: temVeiculo ? vehicleModel : undefined,
+      vehicleColor: temVeiculo ? vehicleColor : undefined,
+      plate: temVeiculo ? plate : undefined,
+    });
 
     if (success) {
       alert("Cadastro realizado com sucesso!");
@@ -54,11 +66,7 @@ export const Register = () => {
             <h2>Cadastre-se</h2>
             <p>Entre para a comunidade de caronas universitárias</p>
 
-            {error && (
-              <p style={{ color: "red", fontSize: "14px" }}>
-                {error}
-              </p>
-            )}
+            {error && <p style={{ color: "red", fontSize: "14px" }}>{error}</p>}
 
             <div className="input-group">
               <input
@@ -91,11 +99,7 @@ export const Register = () => {
             </div>
 
             <div className="input-group">
-              <select
-                value={shift}
-                onChange={(e) => setShift(e.target.value)}
-                required
-              >
+              <select value={shift} onChange={(e) => setShift(e.target.value)} required>
                 <option value="">Selecione o turno</option>
                 <option value="Matutino">Matutino</option>
                 <option value="Vespertino">Vespertino</option>
@@ -111,11 +115,59 @@ export const Register = () => {
                 onChange={(e) => setPassword(e.target.value)}
                 required
               />
-
-              <small style={{ color: "#aaa" }}>
-                A senha deve ter no mínimo 6 caracteres
-              </small>
+              <small style={{ color: "#aaa" }}>A senha deve ter no mínimo 6 caracteres</small>
             </div>
+
+            <div className="checkbox-veiculo">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={temVeiculo}
+                  onChange={(e) => setTemVeiculo(e.target.checked)}
+                />
+                🚗 Tenho veículo e quero oferecer caronas
+              </label>
+            </div>
+
+            {temVeiculo && (
+              <div className="secao-veiculo">
+                <div className="input-group">
+                  <input
+                    type="text"
+                    placeholder="Modelo (ex: Honda Biz 125)"
+                    value={vehicleModel}
+                    onChange={(e) => setVehicleModel(e.target.value)}
+                    required={temVeiculo}
+                  />
+                </div>
+
+                <div className="linha-dois-campos">
+                  <div className="input-group">
+                    <input
+                      type="text"
+                      placeholder="Cor"
+                      value={vehicleColor}
+                      onChange={(e) => setVehicleColor(e.target.value)}
+                      required={temVeiculo}
+                    />
+                  </div>
+
+                  <div className="input-group">
+                    <input
+                      type="text"
+                      placeholder="Placa"
+                      value={plate}
+                      onChange={(e) => setPlate(e.target.value)}
+                      required={temVeiculo}
+                    />
+                  </div>
+                </div>
+
+                <span className="valor-hint">
+                  Não tem veículo ainda? Sem problema, é só desmarcar a opção acima — você pode cadastrar depois em "Meu Veículo".
+                </span>
+              </div>
+            )}
 
             <button type="submit" className="login-btn">
               Criar conta

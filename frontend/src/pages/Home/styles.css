@@ -1,0 +1,75 @@
+.home-page {
+  width: 100%;
+  min-height: 100vh;
+}
+
+.home-hero {
+  width: 100%;
+  min-height: 100vh;
+
+  background:
+    linear-gradient(
+      rgba(255, 255, 255, 0.25),
+      rgba(0, 60, 45, 0.85)
+    ),
+    url("../../assets/bg.png");
+
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.hero-overlay {
+  width: 100%;
+  max-width: 1200px;
+  min-height: 100vh;
+  padding: 40px 20px;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.login-logo-img {
+  width: 240px;
+  max-width: 80%;
+  margin-bottom: 12px;
+}
+
+.home-card {
+  width: 100%;
+  max-width: 450px;
+  background: white;
+  border-radius: 25px;
+  padding: 35px;
+  box-shadow: 0 20px 40px rgba(0,0,0,.2);
+}
+
+.buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.home-btn {
+  display: block;
+  text-align: center;
+  text-decoration: none;
+  padding: 16px;
+  border-radius: 12px;
+  color: white;
+  font-weight: bold;
+}
+
+.oferecer {
+  background: #138a42;
+}
+
+.pedir {
+  background: #0d6efd;
+}

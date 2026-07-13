@@ -1,17 +1,71 @@
 const prisma = require("../prisma/client");
 
+const USER_SELECT = {
+  id: true,
+  name: true,
+  email: true,
+  course: true,
+  shift: true,
+  avatar: true,
+  vehicleModel: true,
+  vehicleColor: true,
+  plate: true,
+};
+
 async function createRide(req, res) {
   try {
-    const { type, origin, destination, date, time, seats, price, observation } = req.body;
-    if (!type || !origin || !destination || !date || !time) return res.status(400).json({ error: "Preencha tipo, saída, destino, data e horário." });
-    if (type !== "OFERTA" && type !== "SOLICITACAO") return res.status(400).json({ error: "O tipo deve ser OFERTA ou SOLICITACAO." });
+    const {
+      type,
+      origin,
+      destination,
+      bairro,
+      rua,
+      numero,
+      latitude,
+      longitude,
+      date,
+      time,
+      seats,
+      price,
+      observation,
+    } = req.body;
+
+    if (!type || !origin || !destination || !date || !time) {
+      return res.status(400).json({ error: "Preencha tipo, saída, destino, data e horário." });
+    }
+
+    if (type !== "OFERTA" && type !== "SOLICITACAO") {
+      return res.status(400).json({ error: "O tipo deve ser OFERTA ou SOLICITACAO." });
+    }
 
     const ride = await prisma.ride.create({
-      data: { type, origin, destination, date, time, seats, price, observation, userId: req.userId },
-      include: { user: { select: { id: true, name: true, email: true, course: true, shift: true, avatar: true } } }
+      data: {
+        type,
+        origin,
+        destination,
+        bairro,
+        rua,
+        numero,
+        latitude,
+        longitude,
+        date,
+        time,
+        seats,
+        price,
+        observation,
+        userId: req.userId,
+      },
+      include: { user: { select: USER_SELECT } },
     });
 
-    await prisma.activity.create({ data: { userId: req.userId, action: "CRIOU_CARONA", detail: `Você criou uma carona de ${origin} para ${destination}.` } });
+    await prisma.activity.create({
+      data: {
+        userId: req.userId,
+        action: "CRIOU_CARONA",
+        detail: `Você criou uma carona de ${origin} para ${destination}.`,
+      },
+    });
+
     return res.status(201).json({ message: "Carona criada com sucesso.", ride });
   } catch (error) {
     return res.status(500).json({ error: "Erro ao criar carona.", details: error.message });
@@ -31,7 +85,11 @@ async function listRides(req, res) {
     const rides = await prisma.ride.findMany({
       where: filters,
       orderBy: { createdAt: "desc" },
-      include: { user: { select: { id: true, name: true, email: true, course: true, shift: true, avatar: true } }, participants: true }
+      include: {
+        user: { select: USER_SELECT },
+        passenger: { select: USER_SELECT },
+        participants: true,
+      },
     });
     return res.json(rides);
   } catch (error) {
@@ -41,7 +99,18 @@ async function listRides(req, res) {
 
 async function myRides(req, res) {
   try {
-    const rides = await prisma.ride.findMany({ where: { userId: req.userId }, orderBy: { createdAt: "desc" }, include: { participants: true } });
+    // traz tanto as caronas que o usuário criou quanto as que ele aceitou
+    const rides = await prisma.ride.findMany({
+      where: {
+        OR: [{ userId: req.userId }, { passengerId: req.userId }],
+      },
+      orderBy: { createdAt: "desc" },
+      include: {
+        user: { select: USER_SELECT },
+        passenger: { select: USER_SELECT },
+        participants: true,
+      },
+    });
     return res.json(rides);
   } catch (error) {
     return res.status(500).json({ error: "Erro ao buscar minhas caronas.", details: error.message });
@@ -65,4 +134,43 @@ async function updateRideStatus(req, res) {
   }
 }
 
-module.exports = { createRide, listRides, myRides, updateRideStatus };
+// Motorista aceitando a solicitação de um aluno (ou aluno aceitando uma oferta)
+async function acceptRide(req, res) {
+  try {
+    const { id } = req.params;
+
+    const ride = await prisma.ride.findUnique({ where: { id } });
+    if (!ride) return res.status(404).json({ error: "Carona não encontrada." });
+
+    if (ride.status !== "PENDENTE") {
+      return res.status(400).json({ error: "Essa carona já foi aceita ou não está mais disponível." });
+    }
+
+    if (ride.userId === req.userId) {
+      return res.status(400).json({ error: "Você não pode aceitar sua própria carona." });
+    }
+
+    const updatedRide = await prisma.ride.update({
+      where: { id },
+      data: { passengerId: req.userId, status: "CONFIRMADA" },
+      include: {
+        user: { select: USER_SELECT },
+        passenger: { select: USER_SELECT },
+      },
+    });
+
+    await prisma.activity.create({
+      data: {
+        userId: req.userId,
+        action: "ACEITOU_CARONA",
+        detail: `Você aceitou a carona de ${updatedRide.user.name}.`,
+      },
+    });
+
+    return res.json({ message: "Carona aceita com sucesso.", ride: updatedRide });
+  } catch (error) {
+    return res.status(500).json({ error: "Erro ao aceitar carona.", details: error.message });
+  }
+}
+
+module.exports = { createRide, listRides, myRides, updateRideStatus, acceptRide };
