@@ -10,4 +10,13 @@ export default defineConfig({
   optimizeDeps: {
     include: ['react-leaflet', 'leaflet', '@react-leaflet/core'],
   },
+  server: {
+    host: true, // permite acessar pelo IP da rede local também
+    proxy: {
+      '/auth': 'http://localhost:3333',
+      '/users': 'http://localhost:3333',
+      '/rides': 'http://localhost:3333',
+      '/ratings': 'http://localhost:3333',
+    },
+  },
 })

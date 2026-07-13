@@ -496,3 +496,99 @@
   background: #dc2626;
   color: #ffffff;
 }
+
+/* ---------- BOTÕES DO MAPA (cancelar + finalizar) ---------- */
+.mapa-botoes {
+  display: flex;
+  gap: 10px;
+}
+
+.mapa-botoes .mapa-cancelar {
+  flex: 1;
+}
+
+.mapa-finalizar {
+  flex: 1;
+  height: 50px;
+  border: none;
+  border-radius: 12px;
+  background: #138a42;
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.mapa-finalizar:hover {
+  background: #0f7337;
+}
+
+/* ---------- AVISO DE PAGAMENTO ---------- */
+.avaliacao-card {
+  text-align: center;
+}
+
+.pagamento-aviso {
+  background: #f5f7f6;
+  border-radius: 14px;
+  padding: 18px;
+  margin-top: 8px;
+}
+
+.pagamento-aviso p {
+  font-size: 13px;
+  color: #6b7280;
+  margin-bottom: 4px;
+}
+
+.pagamento-valor {
+  display: block;
+  font-size: 34px;
+  font-weight: bold;
+  color: #138a42;
+  margin-bottom: 10px;
+}
+
+/* ---------- ESTRELAS DE AVALIAÇÃO ---------- */
+.estrelas {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin: 16px 0 18px;
+}
+
+.estrela {
+  font-size: 36px;
+  color: #dcdfe4;
+  cursor: pointer;
+  transition: 0.15s;
+  user-select: none;
+}
+
+.estrela:hover {
+  transform: scale(1.1);
+}
+
+.estrela.ativa {
+  color: #f5a623;
+}
+
+/* ---------- TEXTAREA (comentário da avaliação) ---------- */
+.input-group textarea {
+  width: 100%;
+  border: 1px solid #dcdfe4;
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 14px;
+  font-family: inherit;
+  color: #06283d;
+  outline: none;
+  resize: none;
+  transition: 0.2s;
+}
+
+.input-group textarea:focus {
+  border-color: #138a42;
+  box-shadow: 0 0 0 3px rgba(19, 138, 66, 0.15);
+}

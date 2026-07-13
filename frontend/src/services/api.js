@@ -1,7 +1,7 @@
 import axios from "axios";
 
 export const api = axios.create({
-  baseURL: "http://localhost:3333",
+  baseURL: "", // relativo — o Vite (em dev) faz proxy pro backend, ver vite.config.js
 });
 
 // adiciona token automaticamente

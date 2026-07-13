@@ -2,6 +2,7 @@ import { useContext, useEffect, useRef, useState } from "react";
 import "./styles.css";
 import logo from "../../assets/logo.png";
 import AcompanhamentoMapa from "./AcompanhamentoMapa";
+import AvaliarCarona from "./AvaliarCarona";
 import { AuthContext } from "../../context/auth";
 import { api } from "../../services/api";
 
@@ -29,6 +30,7 @@ const PedirCarona = () => {
   const [buscandoGps, setBuscandoGps] = useState(false);
   const [etapa, setEtapa] = useState("form"); // "form" | "buscando" | "acompanhando"
   const [motorista, setMotorista] = useState(null);
+  const [posicaoMotorista, setPosicaoMotorista] = useState(null);
   const [rideId, setRideId] = useState(null);
   const [erro, setErro] = useState("");
 
@@ -79,16 +81,17 @@ const PedirCarona = () => {
     );
   }
 
-  // ---------- Fica checando se algum motorista aceitou a solicitação ----------
+  // ---------- Fica checando o status e, depois, a posição real do motorista ----------
   useEffect(() => {
-    if (etapa !== "buscando" || !rideId) return;
+    if ((etapa !== "buscando" && etapa !== "acompanhando") || !rideId) return;
 
     pollingRef.current = setInterval(async () => {
       try {
         const resp = await api.get("/rides/my");
         const rideAtual = resp.data.find((r) => r.id === rideId);
+        if (!rideAtual) return;
 
-        if (rideAtual?.status === "CONFIRMADA" && rideAtual.passenger) {
+        if (etapa === "buscando" && rideAtual.status === "CONFIRMADA" && rideAtual.passenger) {
           const motoristaInfo = rideAtual.passenger;
 
           setMotorista({
@@ -103,7 +106,26 @@ const PedirCarona = () => {
             valorAceito: rideAtual.price,
           });
           setEtapa("acompanhando");
+        }
+
+        // se a carona foi cancelada/revertida do lado do motorista, volta pro form
+        if (rideAtual.status === "PENDENTE" && etapa === "acompanhando") {
+          alert("O motorista desistiu dessa carona. Você voltou pra fila de espera.");
+          setMotorista(null);
+          setPosicaoMotorista(null);
+          setEtapa("buscando");
+          return;
+        }
+
+        // se o motorista já finalizou a carona do lado dele
+        if (rideAtual.status === "FINALIZADA" && etapa === "acompanhando") {
           clearInterval(pollingRef.current);
+          setEtapa("avaliando");
+          return;
+        }
+
+        if (etapa === "acompanhando" && rideAtual.currentLat && rideAtual.currentLng) {
+          setPosicaoMotorista({ lat: rideAtual.currentLat, lng: rideAtual.currentLng });
         }
       } catch (err) {
         console.error("Erro ao verificar status da carona:", err);
@@ -167,8 +189,40 @@ const PedirCarona = () => {
       clearInterval(pollingRef.current);
       setEtapa("form");
       setMotorista(null);
+      setPosicaoMotorista(null);
       setRideId(null);
     }
+  }
+
+  async function finalizarCarona() {
+    try {
+      if (rideId) {
+        await api.patch(`/rides/${rideId}/finish`);
+      }
+    } catch (err) {
+      const msg = err.response?.data?.error || "Erro ao finalizar carona.";
+      alert(msg);
+    } finally {
+      clearInterval(pollingRef.current);
+      setEtapa("avaliando");
+    }
+  }
+
+  // ---------- TELA: pagamento + avaliação ----------
+  if (etapa === "avaliando" && motorista) {
+    return (
+      <AvaliarCarona
+        rideId={rideId}
+        nomeOutraParte={motorista.nome}
+        valor={motorista.valorAceito}
+        onConcluir={() => {
+          setEtapa("form");
+          setMotorista(null);
+          setPosicaoMotorista(null);
+          setRideId(null);
+        }}
+      />
+    );
   }
 
   // ---------- TELA: acompanhando motorista ----------
@@ -177,7 +231,9 @@ const PedirCarona = () => {
       <AcompanhamentoMapa
         pickup={coordsOrigem || IFAM_COORDS}
         motorista={motorista}
+        posicaoAoVivo={posicaoMotorista}
         onCancelar={cancelarCarona}
+        onFinalizar={finalizarCarona}
       />
     );
   }

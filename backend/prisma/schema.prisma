@@ -91,6 +91,11 @@ model Ride {
 
   status RideStatus @default(PENDENTE)
 
+  // posição em tempo real de quem está a caminho (atualizada via GPS)
+  currentLat        Float?
+  currentLng        Float?
+  locationUpdatedAt DateTime?
+
   userId String
   user   User   @relation("RideAuthor", fields: [userId], references: [id])
 

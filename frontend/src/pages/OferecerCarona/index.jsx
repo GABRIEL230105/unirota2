@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import "./styles.css";
 import logo from "../../assets/logo.png";
 import AcompanhamentoMapa from "../PedirCarona/AcompanhamentoMapa";
+import AvaliarCarona from "../PedirCarona/AvaliarCarona";
 import { AuthContext } from "../../context/auth";
 import { api } from "../../services/api";
 
@@ -14,6 +15,8 @@ export default function OferecerCarona() {
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState("");
   const [passageiroSelecionado, setPassageiroSelecionado] = useState(null);
+  const [posicaoAtual, setPosicaoAtual] = useState(null);
+  const [avaliacaoPendente, setAvaliacaoPendente] = useState(null);
 
   async function carregarSolicitacoes() {
     try {
@@ -35,6 +38,32 @@ export default function OferecerCarona() {
     carregarSolicitacoes();
   }, []);
 
+  // ---------- Envia a localização real do motorista pro backend enquanto ele estiver a caminho ----------
+  useEffect(() => {
+    if (!passageiroSelecionado || !navigator.geolocation) return;
+
+    let ultimoEnvio = 0;
+
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        const { latitude, longitude } = pos.coords;
+        setPosicaoAtual({ lat: latitude, lng: longitude });
+
+        const agora = Date.now();
+        if (agora - ultimoEnvio > 4000) {
+          ultimoEnvio = agora;
+          api
+            .patch(`/rides/${passageiroSelecionado.id}/location`, { latitude, longitude })
+            .catch((err) => console.error("Erro ao enviar localização:", err));
+        }
+      },
+      (err) => console.error("Erro no GPS:", err),
+      { enableHighAccuracy: true, maximumAge: 5000 }
+    );
+
+    return () => navigator.geolocation.clearWatch(watchId);
+  }, [passageiroSelecionado]);
+
   const temVeiculoCadastrado = Boolean(user?.vehicleModel && user?.plate);
 
   async function aceitarCarona(id) {
@@ -48,6 +77,7 @@ export default function OferecerCarona() {
       const ride = resp.data.ride;
 
       setPassageiroSelecionado({
+        id: ride.id,
         nome: ride.user.name,
         rua: ride.rua,
         numero: ride.numero,
@@ -83,8 +113,47 @@ export default function OferecerCarona() {
           tempoChegadaMin: 6,
           valorAceito: passageiroSelecionado.valor,
         }}
-        onCancelar={() => {
-          setPassageiroSelecionado(null);
+        posicaoAoVivo={posicaoAtual}
+        onCancelar={async () => {
+          try {
+            await api.patch(`/rides/${passageiroSelecionado.id}/cancel-accept`);
+          } catch (err) {
+            console.error("Erro ao desistir da carona:", err);
+          } finally {
+            setPassageiroSelecionado(null);
+            setPosicaoAtual(null);
+            carregarSolicitacoes();
+          }
+        }}
+        onFinalizar={async () => {
+          try {
+            await api.patch(`/rides/${passageiroSelecionado.id}/finish`);
+          } catch (err) {
+            const msg = err.response?.data?.error || "Erro ao finalizar carona.";
+            alert(msg);
+          } finally {
+            setAvaliacaoPendente({
+              rideId: passageiroSelecionado.id,
+              nome: passageiroSelecionado.nome,
+              valor: passageiroSelecionado.valor,
+            });
+            setPassageiroSelecionado(null);
+            setPosicaoAtual(null);
+          }
+        }}
+      />
+    );
+  }
+
+  // ---------- TELA: pagamento + avaliação ----------
+  if (avaliacaoPendente) {
+    return (
+      <AvaliarCarona
+        rideId={avaliacaoPendente.rideId}
+        nomeOutraParte={avaliacaoPendente.nome}
+        valor={avaliacaoPendente.valor}
+        onConcluir={() => {
+          setAvaliacaoPendente(null);
           carregarSolicitacoes();
         }}
       />
