@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import { MapContainer, TileLayer, Marker, useMap } from "react-leaflet";
+import { useEffect, useState } from "react";
+import { MapContainer, TileLayer, Marker, Polyline, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "./styles.css";
@@ -11,6 +11,13 @@ const pickupIcon = L.divIcon({
   iconAnchor: [10, 10],
 });
 
+const destinoIcon = L.divIcon({
+  className: "",
+  html: `<div class="pin-destino">🏁</div>`,
+  iconSize: [28, 28],
+  iconAnchor: [14, 14],
+});
+
 const carroIcon = L.divIcon({
   className: "",
   html: `<div class="pin-carro">🚗</div>`,
@@ -18,11 +25,14 @@ const carroIcon = L.divIcon({
   iconAnchor: [18, 18],
 });
 
-function lerp(a, b, t) {
-  return a + (b - a) * t;
-}
+const passageiroIcon = L.divIcon({
+  className: "",
+  html: `<div class="pin-passageiro">🧍</div>`,
+  iconSize: [30, 30],
+  iconAnchor: [15, 15],
+});
 
-// distância em metros entre dois pontos (fórmula de haversine)
+// distância em metros entre dois pontos (haversine)
 function distanciaMetros(a, b) {
   const R = 6371000;
   const dLat = ((b.lat - a.lat) * Math.PI) / 180;
@@ -33,85 +43,115 @@ function distanciaMetros(a, b) {
   return 2 * R * Math.asin(Math.sqrt(h));
 }
 
-function AjustarVisao({ pontoA, pontoB }) {
+function AjustarVisao({ pontos }) {
   const map = useMap();
 
   useEffect(() => {
-    const bounds = L.latLngBounds([pontoA, pontoB]);
+    if (pontos.length < 2) return;
+    const bounds = L.latLngBounds(pontos);
     map.fitBounds(bounds, { padding: [70, 70] });
-  }, [pontoA, pontoB, map]);
+  }, [pontos, map]);
 
   return null;
 }
 
 /**
  * pickup: {lat, lng} - ponto de embarque
- * motorista: { nome, carro, placa, nota, tempoChegadaMin }
- * posicaoAoVivo: {lat, lng} | null - posição real vinda do backend (polling).
- *   Se vier null/undefined, cai numa simulação só pra não deixar o mapa vazio
- *   enquanto a primeira localização real do motorista ainda não chegou.
+ * destino: {lat, lng} | null - destino final (usado na fase "em viagem")
+ * motorista: { nome, carro, placa, nota }
+ * papel: "motorista" | "passageiro" — controla o que aparece (botão de iniciar, etc)
+ * status: "ACEITA" | "EM_ANDAMENTO" — define a fase do trajeto
+ * posicaoMotorista: {lat, lng} | null
+ * posicaoPassageiro: {lat, lng} | null
  */
-export default function AcompanhamentoMapa({ pickup, motorista, posicaoAoVivo, onCancelar, onFinalizar }) {
-  const origemSimulada = useRef({
-    lat: pickup.lat + 0.007,
-    lng: pickup.lng + 0.007,
-  });
+export default function AcompanhamentoMapa({
+  pickup,
+  destino,
+  motorista,
+  papel,
+  status,
+  posicaoMotorista,
+  posicaoPassageiro,
+  onCancelar,
+  onFinalizar,
+  onIniciarCorrida,
+}) {
+  const [rota, setRota] = useState([]);
 
-  const [posicaoSimulada, setPosicaoSimulada] = useState(origemSimulada.current);
+  const emViagem = status === "EM_ANDAMENTO";
+  const pontoAlvo = emViagem ? destino : pickup;
 
-  const usandoGpsReal = Boolean(posicaoAoVivo);
+  const temPosicaoMotorista = Boolean(posicaoMotorista);
+  const distancia =
+    temPosicaoMotorista && pontoAlvo ? distanciaMetros(posicaoMotorista, pontoAlvo) : null;
+  const chegouNoAlvo = distancia !== null && distancia < 60;
 
-  // fallback: só roda a simulação enquanto não tem posição real nenhuma
+  // busca a rota real (seguindo ruas) via OSRM sempre que o ponto de origem/alvo mudar de forma relevante
   useEffect(() => {
-    if (usandoGpsReal) return;
+    if (!temPosicaoMotorista || !pontoAlvo) return;
 
-    let passo = 0;
-    const totalPassos = 30;
+    const origemRota = posicaoMotorista;
+    const controller = new AbortController();
 
-    const intervalo = setInterval(() => {
-      passo += 1;
-      const t = Math.min(passo / totalPassos, 1);
+    async function buscarRota() {
+      try {
+        const url = `https://router.project-osrm.org/route/v1/driving/${origemRota.lng},${origemRota.lat};${pontoAlvo.lng},${pontoAlvo.lat}?overview=full&geometries=geojson`;
+        const resp = await fetch(url, { signal: controller.signal });
+        const data = await resp.json();
 
-      setPosicaoSimulada({
-        lat: lerp(origemSimulada.current.lat, pickup.lat, t),
-        lng: lerp(origemSimulada.current.lng, pickup.lng, t),
-      });
+        if (data?.routes?.[0]?.geometry?.coordinates) {
+          const coordsLatLng = data.routes[0].geometry.coordinates.map(([lng, lat]) => [lat, lng]);
+          setRota(coordsLatLng);
+        }
+      } catch (err) {
+        if (err.name !== "AbortError") console.error("Erro ao buscar rota:", err);
+      }
+    }
 
-      if (t >= 1) clearInterval(intervalo);
-    }, 700);
-
-    return () => clearInterval(intervalo);
-  }, [usandoGpsReal, pickup]);
-
-  const posicaoCarro = usandoGpsReal ? posicaoAoVivo : posicaoSimulada;
-  const distancia = usandoGpsReal ? distanciaMetros(posicaoAoVivo, pickup) : null;
-  const chegou = distancia !== null && distancia < 60;
+    buscarRota();
+    return () => controller.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [emViagem, posicaoMotorista?.lat, posicaoMotorista?.lng, pontoAlvo?.lat, pontoAlvo?.lng]);
 
   function statusTexto() {
-    if (!usandoGpsReal) return "Localizando motorista...";
-    if (chegou) return "🚗 Motorista chegou no ponto";
-    if (distancia < 1000) return `📍 A ${Math.round(distancia)} m de distância`;
-    return `📍 A ${(distancia / 1000).toFixed(1)} km de distância`;
+    if (!temPosicaoMotorista) return "Localizando motorista...";
+    if (emViagem) {
+      if (chegouNoAlvo) return "🏁 Chegou ao destino!";
+      if (distancia < 1000) return `🚗 Em viagem — ${Math.round(distancia)} m até o destino`;
+      return `🚗 Em viagem — ${(distancia / 1000).toFixed(1)} km até o destino`;
+    }
+    if (chegouNoAlvo) return "📍 Motorista chegou no ponto de embarque";
+    if (distancia < 1000) return `📍 A ${Math.round(distancia)} m do embarque`;
+    return `📍 A ${(distancia / 1000).toFixed(1)} km do embarque`;
   }
+
+  const pontosParaAjustarVisao = [
+    [pickup.lat, pickup.lng],
+    ...(emViagem && destino ? [[destino.lat, destino.lng]] : []),
+    ...(posicaoMotorista ? [[posicaoMotorista.lat, posicaoMotorista.lng]] : []),
+  ];
 
   return (
     <div className="mapa-wrap">
-      <MapContainer
-        center={[pickup.lat, pickup.lng]}
-        zoom={15}
-        scrollWheelZoom={false}
-        className="mapa-leaflet"
-      >
+      <MapContainer center={[pickup.lat, pickup.lng]} zoom={15} scrollWheelZoom={false} className="mapa-leaflet">
         <TileLayer
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           attribution="&copy; OpenStreetMap"
         />
+
+        {rota.length > 1 && <Polyline positions={rota} pathOptions={{ color: "#138a42", weight: 5, opacity: 0.85 }} />}
+
         <Marker position={[pickup.lat, pickup.lng]} icon={pickupIcon} />
-        <Marker position={[posicaoCarro.lat, posicaoCarro.lng]} icon={carroIcon} />
-        <AjustarVisao
-          pontoA={[pickup.lat, pickup.lng]}
-          pontoB={[posicaoCarro.lat, posicaoCarro.lng]}
-        />
+
+        {emViagem && destino && <Marker position={[destino.lat, destino.lng]} icon={destinoIcon} />}
+
+        {posicaoMotorista && <Marker position={[posicaoMotorista.lat, posicaoMotorista.lng]} icon={carroIcon} />}
+
+        {posicaoPassageiro && !emViagem && (
+          <Marker position={[posicaoPassageiro.lat, posicaoPassageiro.lng]} icon={passageiroIcon} />
+        )}
+
+        <AjustarVisao pontos={pontosParaAjustarVisao} />
       </MapContainer>
 
       <div className="mapa-card-motorista">
@@ -127,6 +167,12 @@ export default function AcompanhamentoMapa({ pickup, motorista, posicaoAoVivo, o
 
           <div className="mapa-nota">⭐ {motorista.nota}</div>
         </div>
+
+        {papel === "motorista" && status === "ACEITA" && (
+          <button className="mapa-iniciar" onClick={onIniciarCorrida}>
+            🚦 Iniciar corrida
+          </button>
+        )}
 
         <div className="mapa-botoes">
           <button className="mapa-cancelar" onClick={onCancelar}>

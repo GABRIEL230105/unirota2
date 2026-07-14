@@ -13,8 +13,6 @@ const USER_SELECT = {
 };
 
 async function createRide(req, res) {
-  console.log("🔵 createRide FOI CHAMADA", req.body);
-
   try {
     const {
       type,
@@ -25,6 +23,8 @@ async function createRide(req, res) {
       numero,
       latitude,
       longitude,
+      destinationLatitude,
+      destinationLongitude,
       date,
       time,
       seats,
@@ -50,6 +50,8 @@ async function createRide(req, res) {
         numero,
         latitude,
         longitude,
+        destinationLatitude,
+        destinationLongitude,
         date,
         time,
         seats,
@@ -123,7 +125,7 @@ async function updateRideStatus(req, res) {
   try {
     const { id } = req.params;
     const { status } = req.body;
-    const allowedStatus = ["PENDENTE", "CONFIRMADA", "CANCELADA", "FINALIZADA"];
+    const allowedStatus = ["PENDENTE", "ACEITA", "EM_ANDAMENTO", "CANCELADA", "FINALIZADA"];
     if (!allowedStatus.includes(status)) return res.status(400).json({ error: "Status inválido." });
 
     const ride = await prisma.ride.findFirst({ where: { id, userId: req.userId } });
@@ -136,7 +138,7 @@ async function updateRideStatus(req, res) {
   }
 }
 
-// Motorista (ou quem foi aceito) atualiza sua posição em tempo real
+// Motorista OU solicitante atualiza sua posição em tempo real
 async function updateLocation(req, res) {
   try {
     const { id } = req.params;
@@ -149,27 +151,70 @@ async function updateLocation(req, res) {
     const ride = await prisma.ride.findUnique({ where: { id } });
     if (!ride) return res.status(404).json({ error: "Carona não encontrada." });
 
-    if (ride.passengerId !== req.userId) {
+    const souMotorista = ride.passengerId === req.userId;
+    const souSolicitante = ride.userId === req.userId;
+
+    if (!souMotorista && !souSolicitante) {
       return res.status(403).json({ error: "Você não está participando dessa carona." });
     }
 
-    if (ride.status !== "CONFIRMADA" && ride.status !== "EM_ANDAMENTO") {
+    if (ride.status !== "ACEITA" && ride.status !== "EM_ANDAMENTO") {
       return res.status(400).json({ error: "Essa carona não está em andamento." });
     }
 
+    const data = souMotorista
+      ? { currentLat: latitude, currentLng: longitude, locationUpdatedAt: new Date() }
+      : { requesterLat: latitude, requesterLng: longitude, requesterLocationUpdatedAt: new Date() };
+
     const updatedRide = await prisma.ride.update({
       where: { id },
-      data: {
-        currentLat: latitude,
-        currentLng: longitude,
-        locationUpdatedAt: new Date(),
+      data,
+      select: {
+        id: true,
+        currentLat: true,
+        currentLng: true,
+        locationUpdatedAt: true,
+        requesterLat: true,
+        requesterLng: true,
+        requesterLocationUpdatedAt: true,
+        status: true,
       },
-      select: { id: true, currentLat: true, currentLng: true, locationUpdatedAt: true, status: true },
     });
 
     return res.json({ message: "Localização atualizada.", ride: updatedRide });
   } catch (error) {
     return res.status(500).json({ error: "Erro ao atualizar localização.", details: error.message });
+  }
+}
+
+// Motorista chegou no ponto de embarque e inicia a corrida de fato
+async function startRide(req, res) {
+  try {
+    const { id } = req.params;
+
+    const ride = await prisma.ride.findUnique({ where: { id } });
+    if (!ride) return res.status(404).json({ error: "Carona não encontrada." });
+
+    if (ride.passengerId !== req.userId) {
+      return res.status(403).json({ error: "Só quem aceitou a carona pode iniciá-la." });
+    }
+
+    if (ride.status !== "ACEITA") {
+      return res.status(400).json({ error: "Essa carona precisa estar aceita para poder ser iniciada." });
+    }
+
+    const updatedRide = await prisma.ride.update({
+      where: { id },
+      data: { status: "EM_ANDAMENTO" },
+      include: {
+        user: { select: USER_SELECT },
+        passenger: { select: USER_SELECT },
+      },
+    });
+
+    return res.json({ message: "Corrida iniciada!", ride: updatedRide });
+  } catch (error) {
+    return res.status(500).json({ error: "Erro ao iniciar corrida.", details: error.message });
   }
 }
 
@@ -200,34 +245,17 @@ async function getRideById(req, res) {
 // Motorista aceitando a solicitação de um aluno (ou aluno aceitando uma oferta)
 async function acceptRide(req, res) {
   try {
-    console.log("🟢 acceptRide FOI CHAMADA");
-    console.log("ID da carona:", req.params.id);
-    console.log("Usuário:", req.userId);
-
     const { id } = req.params;
 
-    const ride = await prisma.ride.findUnique({
-      where: { id },
-    });
-
-    console.log("Carona encontrada:", ride);
-
-    if (!ride) {
-      return res.status(404).json({
-        error: "Carona não encontrada.",
-      });
-    }
+    const ride = await prisma.ride.findUnique({ where: { id } });
+    if (!ride) return res.status(404).json({ error: "Carona não encontrada." });
 
     if (ride.status !== "PENDENTE") {
-      return res.status(400).json({
-        error: "Essa carona já foi aceita ou não está mais disponível.",
-      });
+      return res.status(400).json({ error: "Essa carona já foi aceita ou não está mais disponível." });
     }
 
     if (ride.userId === req.userId) {
-      return res.status(400).json({
-        error: "Você não pode aceitar sua própria carona.",
-      });
+      return res.status(400).json({ error: "Você não pode aceitar sua própria carona." });
     }
 
     const updatedRide = await prisma.ride.update({
@@ -237,18 +265,11 @@ async function acceptRide(req, res) {
         status: "ACEITA",
       },
       include: {
-        user: {
-          select: USER_SELECT,
-        },
-        passenger: {
-          select: USER_SELECT,
-        },
+        user: { select: USER_SELECT },
+        passenger: { select: USER_SELECT },
       },
     });
 
-    console.log("✅ Carona atualizada com sucesso.");
-
-    // Registra atividade (se der erro aqui, vamos descobrir)
     await prisma.activity.create({
       data: {
         userId: req.userId,
@@ -257,22 +278,9 @@ async function acceptRide(req, res) {
       },
     });
 
-    console.log("✅ Atividade registrada.");
-
-    return res.json({
-      message: "Carona aceita com sucesso.",
-      ride: updatedRide,
-    });
-
+    return res.json({ message: "Carona aceita com sucesso.", ride: updatedRide });
   } catch (error) {
-    console.error("❌ ERRO NO acceptRide:");
-    console.error(error);
-
-    return res.status(500).json({
-      error: "Erro ao aceitar carona.",
-      details: error.message,
-      stack: error.stack,
-    });
+    return res.status(500).json({ error: "Erro ao aceitar carona.", details: error.message });
   }
 }
 
@@ -318,8 +326,8 @@ async function finalizeRide(req, res) {
       return res.status(403).json({ error: "Você não faz parte dessa carona." });
     }
 
-    if (ride.status !== "CONFIRMADA") {
-      return res.status(400).json({ error: "Só é possível finalizar uma carona confirmada." });
+    if (ride.status !== "ACEITA") {
+      return res.status(400).json({ error: "Só é possível finalizar uma carona aceita." });
     }
 
     const updatedRide = await prisma.ride.update({
@@ -355,4 +363,5 @@ module.exports = {
   getRideById,
   cancelAcceptance,
   finalizeRide,
+  startRide,
 };

@@ -12,6 +12,22 @@ function hojeISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
+// geocodifica um endereço em texto pra coordenadas (Nominatim, gratuito, sem chave)
+async function geocodificarEndereco(texto) {
+  try {
+    const resp = await fetch(
+      `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(texto + ", Parintins, AM, Brasil")}`
+    );
+    const data = await resp.json();
+    if (data?.[0]) {
+      return { lat: Number(data[0].lat), lng: Number(data[0].lon) };
+    }
+  } catch (err) {
+    console.error("Erro ao geocodificar destino:", err);
+  }
+  return null;
+}
+
 const PedirCarona = () => {
   const { user } = useContext(AuthContext);
 
@@ -28,9 +44,12 @@ const PedirCarona = () => {
 
   const [coordsOrigem, setCoordsOrigem] = useState(null);
   const [buscandoGps, setBuscandoGps] = useState(false);
-  const [etapa, setEtapa] = useState("form"); // "form" | "buscando" | "acompanhando"
+  const [etapa, setEtapa] = useState("form"); // "form" | "buscando" | "acompanhando" | "avaliando"
   const [motorista, setMotorista] = useState(null);
   const [posicaoMotorista, setPosicaoMotorista] = useState(null);
+  const [posicaoPropria, setPosicaoPropria] = useState(null);
+  const [statusCarona, setStatusCarona] = useState("ACEITA");
+  const [destinoCoords, setDestinoCoords] = useState(null);
   const [rideId, setRideId] = useState(null);
   const [erro, setErro] = useState("");
 
@@ -81,7 +100,33 @@ const PedirCarona = () => {
     );
   }
 
-  // ---------- Fica checando o status e, depois, a posição real do motorista ----------
+  // ---------- Envia o GPS real do próprio aluno enquanto a carona está rolando ----------
+  useEffect(() => {
+    if ((etapa !== "acompanhando" && etapa !== "buscando") || !rideId || !navigator.geolocation) return;
+
+    let ultimoEnvio = 0;
+
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        const { latitude, longitude } = pos.coords;
+        setPosicaoPropria({ lat: latitude, lng: longitude });
+
+        const agora = Date.now();
+        if (etapa === "acompanhando" && agora - ultimoEnvio > 4000) {
+          ultimoEnvio = agora;
+          api
+            .patch(`/rides/${rideId}/location`, { latitude, longitude })
+            .catch((err) => console.error("Erro ao enviar localização:", err));
+        }
+      },
+      (err) => console.error("Erro no GPS:", err),
+      { enableHighAccuracy: true, maximumAge: 5000 }
+    );
+
+    return () => navigator.geolocation.clearWatch(watchId);
+  }, [etapa, rideId]);
+
+  // ---------- Fica checando o status e a posição real do motorista ----------
   useEffect(() => {
     if ((etapa !== "buscando" && etapa !== "acompanhando") || !rideId) return;
 
@@ -91,7 +136,7 @@ const PedirCarona = () => {
         const rideAtual = resp.data.find((r) => r.id === rideId);
         if (!rideAtual) return;
 
-        if (etapa === "buscando" && rideAtual.status === "CONFIRMADA" && rideAtual.passenger) {
+        if (etapa === "buscando" && rideAtual.status === "ACEITA" && rideAtual.passenger) {
           const motoristaInfo = rideAtual.passenger;
 
           setMotorista({
@@ -101,14 +146,12 @@ const PedirCarona = () => {
               ? `${motoristaInfo.vehicleModel} — ${motoristaInfo.vehicleColor || ""}`.trim()
               : "Veículo não informado",
             placa: motoristaInfo.plate || "—",
-            nota: "—", // depende do sistema de Rating, ainda não calculado aqui
-            tempoChegadaMin: 6,
+            nota: "—",
             valorAceito: rideAtual.price,
           });
           setEtapa("acompanhando");
         }
 
-        // se a carona foi cancelada/revertida do lado do motorista, volta pro form
         if (rideAtual.status === "PENDENTE" && etapa === "acompanhando") {
           alert("O motorista desistiu dessa carona. Você voltou pra fila de espera.");
           setMotorista(null);
@@ -117,15 +160,22 @@ const PedirCarona = () => {
           return;
         }
 
-        // se o motorista já finalizou a carona do lado dele
         if (rideAtual.status === "FINALIZADA" && etapa === "acompanhando") {
           clearInterval(pollingRef.current);
           setEtapa("avaliando");
           return;
         }
 
-        if (etapa === "acompanhando" && rideAtual.currentLat && rideAtual.currentLng) {
-          setPosicaoMotorista({ lat: rideAtual.currentLat, lng: rideAtual.currentLng });
+        if (etapa === "acompanhando") {
+          setStatusCarona(rideAtual.status);
+
+          if (rideAtual.currentLat && rideAtual.currentLng) {
+            setPosicaoMotorista({ lat: rideAtual.currentLat, lng: rideAtual.currentLng });
+          }
+
+          if (rideAtual.destinationLatitude && rideAtual.destinationLongitude) {
+            setDestinoCoords({ lat: rideAtual.destinationLatitude, lng: rideAtual.destinationLongitude });
+          }
         }
       } catch (err) {
         console.error("Erro ao verificar status da carona:", err);
@@ -152,6 +202,12 @@ const PedirCarona = () => {
     const destinoFinal = destinoPersonalizado ? carona.enderecoPersonalizado : carona.destino;
     const origin = `${carona.rua}, ${carona.numero} - ${carona.bairro}`;
 
+    let destinoLatLng = IFAM_COORDS;
+    if (destinoPersonalizado) {
+      const geocodificado = await geocodificarEndereco(carona.enderecoPersonalizado);
+      destinoLatLng = geocodificado || IFAM_COORDS;
+    }
+
     const payload = {
       type: "SOLICITACAO",
       origin,
@@ -161,6 +217,8 @@ const PedirCarona = () => {
       numero: carona.numero,
       latitude: coordsOrigem?.lat,
       longitude: coordsOrigem?.lng,
+      destinationLatitude: destinoLatLng.lat,
+      destinationLongitude: destinoLatLng.lng,
       date: carona.date,
       time: carona.time,
       seats: 1,
@@ -170,6 +228,7 @@ const PedirCarona = () => {
     try {
       const resp = await api.post("/rides", payload);
       setRideId(resp.data.ride.id);
+      setDestinoCoords(destinoLatLng);
       setEtapa("buscando");
     } catch (err) {
       const msg = err.response?.data?.error || "Erro ao solicitar carona.";
@@ -208,7 +267,6 @@ const PedirCarona = () => {
     }
   }
 
-  // ---------- TELA: pagamento + avaliação ----------
   if (etapa === "avaliando" && motorista) {
     return (
       <AvaliarCarona
@@ -225,20 +283,22 @@ const PedirCarona = () => {
     );
   }
 
-  // ---------- TELA: acompanhando motorista ----------
   if (etapa === "acompanhando" && motorista) {
     return (
       <AcompanhamentoMapa
         pickup={coordsOrigem || IFAM_COORDS}
+        destino={destinoCoords}
         motorista={motorista}
-        posicaoAoVivo={posicaoMotorista}
+        papel="passageiro"
+        status={statusCarona}
+        posicaoMotorista={posicaoMotorista}
+        posicaoPassageiro={posicaoPropria}
         onCancelar={cancelarCarona}
         onFinalizar={finalizarCarona}
       />
     );
   }
 
-  // ---------- TELA: procurando motorista ----------
   if (etapa === "buscando") {
     return (
       <main className="login-page">
@@ -261,7 +321,6 @@ const PedirCarona = () => {
     );
   }
 
-  // ---------- FORMULÁRIO ----------
   return (
     <main className="login-page">
       <section className="login-hero">
