@@ -200,28 +200,55 @@ async function getRideById(req, res) {
 // Motorista aceitando a solicitação de um aluno (ou aluno aceitando uma oferta)
 async function acceptRide(req, res) {
   try {
+    console.log("🟢 acceptRide FOI CHAMADA");
+    console.log("ID da carona:", req.params.id);
+    console.log("Usuário:", req.userId);
+
     const { id } = req.params;
 
-    const ride = await prisma.ride.findUnique({ where: { id } });
-    if (!ride) return res.status(404).json({ error: "Carona não encontrada." });
+    const ride = await prisma.ride.findUnique({
+      where: { id },
+    });
+
+    console.log("Carona encontrada:", ride);
+
+    if (!ride) {
+      return res.status(404).json({
+        error: "Carona não encontrada.",
+      });
+    }
 
     if (ride.status !== "PENDENTE") {
-      return res.status(400).json({ error: "Essa carona já foi aceita ou não está mais disponível." });
+      return res.status(400).json({
+        error: "Essa carona já foi aceita ou não está mais disponível.",
+      });
     }
 
     if (ride.userId === req.userId) {
-      return res.status(400).json({ error: "Você não pode aceitar sua própria carona." });
+      return res.status(400).json({
+        error: "Você não pode aceitar sua própria carona.",
+      });
     }
 
     const updatedRide = await prisma.ride.update({
       where: { id },
-      data: { passengerId: req.userId, status: "CONFIRMADA" },
+      data: {
+        passengerId: req.userId,
+        status: "ACEITA",
+      },
       include: {
-        user: { select: USER_SELECT },
-        passenger: { select: USER_SELECT },
+        user: {
+          select: USER_SELECT,
+        },
+        passenger: {
+          select: USER_SELECT,
+        },
       },
     });
 
+    console.log("✅ Carona atualizada com sucesso.");
+
+    // Registra atividade (se der erro aqui, vamos descobrir)
     await prisma.activity.create({
       data: {
         userId: req.userId,
@@ -230,9 +257,22 @@ async function acceptRide(req, res) {
       },
     });
 
-    return res.json({ message: "Carona aceita com sucesso.", ride: updatedRide });
+    console.log("✅ Atividade registrada.");
+
+    return res.json({
+      message: "Carona aceita com sucesso.",
+      ride: updatedRide,
+    });
+
   } catch (error) {
-    return res.status(500).json({ error: "Erro ao aceitar carona.", details: error.message });
+    console.error("❌ ERRO NO acceptRide:");
+    console.error(error);
+
+    return res.status(500).json({
+      error: "Erro ao aceitar carona.",
+      details: error.message,
+      stack: error.stack,
+    });
   }
 }
 
