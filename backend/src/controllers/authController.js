@@ -1,6 +1,8 @@
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const prisma = require("../prisma/client");
+const crypto = require("crypto");
+const nodemailer = require("nodemailer");
 
 function isIfamEmail(email) {
   const regex = /^[0-9]{10}@ifam\.edu\.br$/;

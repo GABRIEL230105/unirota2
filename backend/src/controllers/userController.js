@@ -1,6 +1,7 @@
 const crypto = require("crypto");
 const bcrypt = require("bcrypt");
 const prisma = require("../prisma/client");
+const transporter = require("../config/mail");
 
 const PROFILE_SELECT = {
   id: true,
@@ -121,64 +122,136 @@ async function listUsers(req, res) {
 async function forgotPassword(req, res) {
   try {
     const { email } = req.body;
-    if (!email) return res.status(400).json({ error: "Informe o e-mail." });
 
-    const user = await prisma.user.findUnique({ where: { email } });
-
-    
-    if (!user) {
-      return res.json({
-        message: "Se esse e-mail estiver cadastrado, você receberá as instruções.",
+    if (!email) {
+      return res.status(400).json({
+        error: "Informe o e-mail.",
       });
     }
 
-    const token = crypto.randomBytes(32).toString("hex");
-    const expiry = new Date(Date.now() + 1000 * 60 * 60); 
+    const user = await prisma.user.findUnique({
+      where: { email },
+    });
 
+    if (!user) {
+      return res.json({
+        message:
+          "Se esse e-mail estiver cadastrado, você receberá as instruções.",
+      });
+    }
+
+    // Gera um token aleatório
+    const token = crypto.randomBytes(32).toString("hex");
+
+    // Expira em 1 hora
+    const expiry = new Date(Date.now() + 60 * 60 * 1000);
+
+    // Salva no banco
     await prisma.user.update({
       where: { id: user.id },
-      data: { resetToken: token, resetTokenExpiry: expiry },
+      data: {
+        resetToken: token,
+        resetTokenExp: expiry,
+      },
     });
 
-   
+
+    // CRIA O LINK ANTES DE USAR NO EMAIL
     const resetLink = `http://localhost:5173/resetar-senha/${token}`;
-    console.log("Link de redefinição de senha:", resetLink);
+
+
+    await transporter.sendMail({
+      from: `"UniRota" <${process.env.EMAIL_USER}>`,
+      to: user.email,
+      subject: "Recuperação de senha - UniRota",
+      html: `
+        <h2>Recuperação de senha</h2>
+
+        <p>Olá, ${user.name}!</p>
+
+        <p>Clique no link abaixo para redefinir sua senha:</p>
+
+        <a href="${resetLink}">
+          Redefinir senha
+        </a>
+
+        <p>Esse link expira em 1 hora.</p>
+      `,
+    });
+
+
+    console.log("==================================");
+    console.log("LINK DE RECUPERAÇÃO:");
+    console.log(resetLink);
+    console.log("==================================");
+
 
     return res.json({
-      message: "Se esse e-mail estiver cadastrado, você receberá as instruções.",
-      
+      message:
+        "Se esse e-mail estiver cadastrado, você receberá as instruções.",
+
+      // Remover depois que testar
       resetLinkDev: resetLink,
     });
+
   } catch (error) {
-    return res.status(500).json({ error: "Erro ao solicitar recuperação de senha.", details: error.message });
+    console.error(error);
+
+    return res.status(500).json({
+      error: "Erro ao solicitar recuperação de senha.",
+      details: error.message,
+    });
   }
 }
 
 async function resetPassword(req, res) {
   try {
     const { token, password } = req.body;
+
     if (!token || !password) {
-      return res.status(400).json({ error: "Token e nova senha são obrigatórios." });
+      return res.status(400).json({
+        error: "Token e nova senha são obrigatórios.",
+      });
     }
 
     const user = await prisma.user.findFirst({
-      where: { resetToken: token, resetTokenExpiry: { gt: new Date() } },
+      where: {
+        resetToken: token,
+        resetTokenExp: {
+          gt: new Date(),
+        },
+      },
     });
 
     if (!user) {
-      return res.status(400).json({ error: "Link inválido ou expirado. Solicite um novo." });
+      return res.status(400).json({
+        error: "Link inválido ou expirado. Solicite um novo.",
+      });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
     await prisma.user.update({
-      where: { id: user.id },
-      data: { password: hashedPassword, resetToken: null, resetTokenExpiry: null },
+      where: {
+        id: user.id,
+      },
+      data: {
+        password: hashedPassword,
+        resetToken: null,
+        resetTokenExp: null,
+      },
     });
 
-    return res.json({ message: "Senha redefinida com sucesso. Você já pode fazer login." });
+    return res.json({
+      message: "Senha redefinida com sucesso. Você já pode fazer login.",
+    });
   } catch (error) {
-    return res.status(500).json({ error: "Erro ao redefinir senha.", details: error.message });
+    console.error(error);
+
+    return res.status(500).json({
+      error: "Erro ao redefinir senha.",
+      details: error.message,
+    });
   }
 }
 
