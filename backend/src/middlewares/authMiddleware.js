@@ -1,6 +1,8 @@
 const jwt = require("jsonwebtoken");
 
 function authMiddleware(req, res, next) {
+  console.log("🟢 authMiddleware EXECUTADO", req.method, req.originalUrl);
+
   const authHeader = req.headers.authorization;
   if (!authHeader) return res.status(401).json({ error: "Token não informado." });
 
@@ -13,6 +15,7 @@ function authMiddleware(req, res, next) {
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     req.userId = decoded.id;
+    console.log("🟢 Token válido, seguindo para a rota. userId:", req.userId);
     return next();
   } catch {
     return res.status(401).json({ error: "Token expirado ou inválido." });

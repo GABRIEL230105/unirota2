@@ -22,6 +22,16 @@ const io = new Server(server, { cors: { origin: "*", methods: ["GET", "POST", "P
 
 app.use(cors({ origin: "*", methods: ["GET", "POST", "PUT", "PATCH", "DELETE"], allowedHeaders: ["Content-Type", "Authorization"] }));
 app.use(express.json());
+app.use(express.json());
+app.use("/uploads", express.static(path.resolve(__dirname, "..", "uploads")));
+
+// 🟡 DEBUG TEMPORÁRIO — remover depois
+app.use((req, res, next) => {
+  console.log("📡 Requisição chegou no backend:", req.method, req.originalUrl);
+  next();
+});
+
+app.get("/", (req, res) => res.json({ message: "API UniRota funcionando!" }));
 app.use("/uploads", express.static(path.resolve(__dirname, "..", "uploads")));
 
 app.get("/", (req, res) => res.json({ message: "API UniRota funcionando!" }));

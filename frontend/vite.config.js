@@ -12,6 +12,7 @@ export default defineConfig({
   },
   server: {
     host: true, // permite acessar pelo IP da rede local também
+    allowedHosts: [".ngrok-free.dev", ".ngrok-free.app", ".ngrok.io"],
     proxy: {
       '/auth': 'http://localhost:3333',
       '/users': 'http://localhost:3333',

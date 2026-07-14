@@ -13,6 +13,8 @@ const USER_SELECT = {
 };
 
 async function createRide(req, res) {
+  console.log("🔵 createRide FOI CHAMADA", req.body);
+
   try {
     const {
       type,
