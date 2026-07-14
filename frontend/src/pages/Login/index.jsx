@@ -20,7 +20,7 @@ export const Login = () => {
       navigate("/home");
     } else {
       alert("Email ou senha inválidos");
-    }
+    } 
   };
 
   return (

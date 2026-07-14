@@ -1,4 +1,4 @@
-import { useContext, useEffect, useState } from "react";
+import { useContext, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import "./styles.css";
 import logo from "../../assets/logo.png";
@@ -8,6 +8,7 @@ import { AuthContext } from "../../context/auth";
 import { api } from "../../services/api";
 
 const IFAM_COORDS = { lat: -2.627, lng: -56.734 };
+const TEMPO_LIMITE_SEGUNDOS = 15;
 
 export default function OferecerCarona() {
   const { user } = useContext(AuthContext);
@@ -18,6 +19,9 @@ export default function OferecerCarona() {
   const [posicaoAtual, setPosicaoAtual] = useState(null);
   const [avaliacaoPendente, setAvaliacaoPendente] = useState(null);
 
+  const [indiceAtual, setIndiceAtual] = useState(0);
+  const [segundosRestantes, setSegundosRestantes] = useState(TEMPO_LIMITE_SEGUNDOS);
+
   async function carregarSolicitacoes() {
     try {
       setCarregando(true);
@@ -25,6 +29,7 @@ export default function OferecerCarona() {
         params: { type: "SOLICITACAO", status: "PENDENTE" },
       });
       setSolicitacoes(resp.data);
+      setIndiceAtual(0);
       setErro("");
     } catch (err) {
       setErro("Não foi possível carregar as solicitações.");
@@ -64,6 +69,25 @@ export default function OferecerCarona() {
     return () => navigator.geolocation.clearWatch(watchId);
   }, [passageiroSelecionado]);
 
+  // ---------- Cronômetro do pedido em exibição ----------
+  useEffect(() => {
+    setSegundosRestantes(TEMPO_LIMITE_SEGUNDOS);
+
+    if (indiceAtual >= solicitacoes.length) return;
+
+    const intervalo = setInterval(() => {
+      setSegundosRestantes((atual) => {
+        if (atual <= 1) {
+          setIndiceAtual((i) => i + 1);
+          return TEMPO_LIMITE_SEGUNDOS;
+        }
+        return atual - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(intervalo);
+  }, [indiceAtual, solicitacoes.length]);
+
   const temVeiculoCadastrado = Boolean(user?.vehicleModel && user?.plate);
 
   async function aceitarCarona(id) {
@@ -94,6 +118,16 @@ export default function OferecerCarona() {
       carregarSolicitacoes();
     }
   }
+
+  function rejeitarAtual() {
+    setIndiceAtual((i) => i + 1);
+  }
+
+  const circunferencia = 2 * Math.PI * 16;
+  const offsetCronometro = useMemo(
+    () => circunferencia * (1 - segundosRestantes / TEMPO_LIMITE_SEGUNDOS),
+    [segundosRestantes]
+  );
 
   // ---------- TELA: acompanhando até o aluno ----------
   if (passageiroSelecionado) {
@@ -160,7 +194,9 @@ export default function OferecerCarona() {
     );
   }
 
-  // ---------- TELA: lista de solicitações ----------
+  const pedidoAtual = solicitacoes[indiceAtual];
+
+  // ---------- TELA: pedido atual (um por vez, estilo app de transporte) ----------
   return (
     <main className="login-page">
       <section className="login-hero">
@@ -206,38 +242,85 @@ export default function OferecerCarona() {
             </div>
           )}
 
-          {!carregando && !erro && solicitacoes.length > 0 && (
-            <div className="lista-carona">
-              {solicitacoes.map((item) => (
-                <div className="card-solicitacao" key={item.id}>
-                  <h2>👤 {item.user?.name}</h2>
+          {!carregando && !erro && solicitacoes.length > 0 && !pedidoAtual && (
+            <div className="login-card buscando-card">
+              <h2>Você viu todos os pedidos</h2>
+              <p>Não sobrou nenhuma solicitação pendente na fila.</p>
+              <button className="login-btn" onClick={carregarSolicitacoes} style={{ marginTop: 16 }}>
+                Atualizar
+              </button>
+            </div>
+          )}
 
-                  <div className="rota">
-                    <p>
-                      📍 <strong>Local de busca:</strong>
-                      <br />
-                      {item.rua}, {item.numero}
-                      <br />
-                      Bairro {item.bairro}
-                    </p>
-
-                    <p>
-                      🎯 <strong>Destino:</strong>
-                      <br />
-                      {item.destination}
-                    </p>
-                  </div>
-
-                  <div className="info">
-                    <span>💰 R$ {item.price},00</span>
-                    <span>{item.latitude ? "📍 GPS disponível" : "📍 Sem GPS"}</span>
-                  </div>
-
-                  <button className="login-btn" onClick={() => aceitarCarona(item.id)}>
-                    🚗 Oferecer carona
-                  </button>
+          {!carregando && !erro && pedidoAtual && (
+            <div className="pedido-card">
+              <div className="pedido-topo">
+                <div className="pedido-rota-mini">
+                  <span className="mini-ponto origem" />
+                  <span className="mini-linha" />
+                  <span className="mini-ponto destino" />
                 </div>
-              ))}
+                <button className="pedido-rejeitar" onClick={rejeitarAtual} aria-label="Rejeitar pedido">
+                  ✕ Rejeitar
+                </button>
+              </div>
+
+              <div className="pedido-selo-linha">
+                <span className="pedido-selo">🎓 Comunidade acadêmica</span>
+                <span className="pedido-selo">
+                  {pedidoAtual.latitude ? "📍 GPS ativo" : "📍 Sem GPS"}
+                </span>
+              </div>
+
+              <h2 className="pedido-nome">{pedidoAtual.user?.name}</h2>
+
+              <div className="pedido-valor">
+                {pedidoAtual.price ? `R$ ${Number(pedidoAtual.price).toFixed(2)}` : "Carona solidária"}
+              </div>
+
+              <div className="pedido-endereco">
+                <div className="endereco-trilho">
+                  <span className="endereco-ponto embarque" />
+                  <span className="endereco-linha" />
+                  <span className="endereco-ponto destino" />
+                </div>
+
+                <div className="endereco-textos">
+                  <div>
+                    <p className="endereco-label">Embarque</p>
+                    <p className="endereco-valor">
+                      {pedidoAtual.rua}, {pedidoAtual.numero} — Bairro {pedidoAtual.bairro}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="endereco-label">Destino</p>
+                    <p className="endereco-valor">{pedidoAtual.destination}</p>
+                  </div>
+                </div>
+              </div>
+
+              <button className="pedido-aceitar" onClick={() => aceitarCarona(pedidoAtual.id)}>
+                <span>Aceitar carona</span>
+                <span className="pedido-timer">
+                  <svg viewBox="0 0 36 36" className="timer-svg">
+                    <circle cx="18" cy="18" r="16" className="timer-fundo" />
+                    <circle
+                      cx="18"
+                      cy="18"
+                      r="16"
+                      className="timer-progresso"
+                      style={{ strokeDasharray: circunferencia, strokeDashoffset: offsetCronometro }}
+                    />
+                  </svg>
+                  <span className="timer-numero">{segundosRestantes}s</span>
+                </span>
+              </button>
+
+              {solicitacoes.length > 1 && (
+                <p className="pedido-contador">
+                  Pedido {indiceAtual + 1} de {solicitacoes.length}
+                </p>
+              )}
             </div>
           )}
         </div>

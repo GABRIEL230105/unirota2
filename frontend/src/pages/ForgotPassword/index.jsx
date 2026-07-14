@@ -1,29 +1,31 @@
 import { Link } from "react-router-dom";
 import { useState } from "react";
+import { api } from "../../services/api";
 import "./styles.css";
 import logo from "../../assets/logo.png";
 
 export const ForgotPassword = () => {
   const [email, setEmail] = useState("");
   const [mensagem, setMensagem] = useState("");
+  const [enviando, setEnviando] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setEnviando(true);
+    setMensagem("");
 
     try {
-      const response = await fetch("http://localhost:3333/api/users/recuperar-senha", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email }),
-      });
+      const response = await api.post("/users/recuperar-senha", { email });
+      setMensagem(response.data.message);
 
-      const data = await response.json();
-
-      setMensagem(data.message);
+      // ⚠️ só existe em dev, enquanto não tem envio de e-mail de verdade — remover depois
+      if (response.data.resetLinkDev) {
+        console.log("Link de redefinição (modo dev):", response.data.resetLinkDev);
+      }
     } catch (error) {
-      setMensagem("Erro ao enviar o email.");
+      setMensagem(error.response?.data?.error || "Erro ao enviar o e-mail.");
+    } finally {
+      setEnviando(false);
     }
   };
 
@@ -54,11 +56,10 @@ export const ForgotPassword = () => {
               />
             </div>
 
-            <button type="submit" className="login-btn">
-              Enviar link
+            <button type="submit" className="login-btn" disabled={enviando}>
+              {enviando ? "Enviando..." : "Enviar link"}
             </button>
 
-            {/* 👇 MENSAGEM DE RETORNO */}
             {mensagem && (
               <p style={{ marginTop: "10px", textAlign: "center" }}>
                 {mensagem}

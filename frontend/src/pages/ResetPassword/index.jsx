@@ -1,5 +1,6 @@
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useState } from "react";
+import { api } from "../../services/api";
 import "./styles.css";
 import logo from "../../assets/logo.png";
 
@@ -10,40 +11,26 @@ export const ResetPassword = () => {
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [enviando, setEnviando] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
     setMessage("");
     setError("");
+    setEnviando(true);
 
     try {
-      const response = await fetch(
-        "http://localhost:3333/api/users/resetar-senha",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ token, password }),
-        }
-      );
+      const response = await api.post("/users/resetar-senha", { token, password });
+      setMessage(response.data.message);
 
-      const data = await response.json();
-
-      if (response.ok) {
-        setMessage(data.message);
-
-        setTimeout(() => {
-          navigate("/login");
-        }, 2000);
-
-      } else {
-        setError(data.message);
-      }
-
+      setTimeout(() => {
+        navigate("/login");
+      }, 2000);
     } catch (err) {
-      setError("Erro ao redefinir senha.");
+      setError(err.response?.data?.error || "Erro ao redefinir senha.");
+    } finally {
+      setEnviando(false);
     }
   };
 
@@ -87,8 +74,8 @@ export const ResetPassword = () => {
               />
             </div>
 
-            <button type="submit" className="login-btn">
-              Salvar nova senha
+            <button type="submit" className="login-btn" disabled={enviando}>
+              {enviando ? "Salvando..." : "Salvar nova senha"}
             </button>
 
             {message && (
