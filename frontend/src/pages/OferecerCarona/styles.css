@@ -7,6 +7,57 @@
   margin-top: 20px;
 }
 
+/* 🔧 ADICIONADO — faltava para o card renderizado em OferecerCarona.jsx (className="card-solicitacao") */
+.card-solicitacao {
+  width: 100%;
+  max-width: 420px;
+  background: #ffffff;
+  border-radius: 25px;
+  padding: 22px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.16);
+  text-align: left;
+  animation: aparecerPedido 0.3s ease;
+}
+
+.card-solicitacao h2 {
+  font-size: 18px;
+  color: #06283d;
+  margin: 0 0 14px;
+}
+
+.card-solicitacao .rota {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  background: #f4f6f5;
+  border-radius: 14px;
+  padding: 14px;
+  margin-bottom: 16px;
+}
+
+.card-solicitacao .rota p {
+  margin: 0;
+  font-size: 14px;
+  color: #06283d;
+  line-height: 1.4;
+}
+
+.card-solicitacao .info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 18px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #06283d;
+}
+
+@media (max-width: 600px) {
+  .card-solicitacao {
+    padding: 18px;
+  }
+}
+
 
 .pedido-card {
   width: 100%;

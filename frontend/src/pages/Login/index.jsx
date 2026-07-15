@@ -14,12 +14,12 @@ export const Login = () => {
   const handleSignIn = async (e) => {
     e.preventDefault();
 
-    const success = await signIn(email, password);
+    const resultado = await signIn(email, password);
 
-    if (success) {
+    if (resultado.success) {
       navigate("/home");
     } else {
-      alert("Email ou senha inválidos");
+      alert(resultado.error);
     } 
   };
 

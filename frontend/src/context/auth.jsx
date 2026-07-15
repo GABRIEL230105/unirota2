@@ -30,10 +30,10 @@ export const AuthProvider = ({ children }) => {
       setUser(me.data);
       localStorage.setItem("@Auth:user", JSON.stringify(me.data));
 
-      return true;
+      return { success: true };
     } catch (error) {
       console.error("Erro no login:", error.response?.data);
-      return false;
+      return { success: false, error: error.response?.data?.error || "Erro ao fazer login." };
     }
   };
 
@@ -53,10 +53,10 @@ export const AuthProvider = ({ children }) => {
         plate: dadosCadastro.plate || undefined,
       });
 
-      return true;
+      return { success: true };
     } catch (error) {
       console.error("Erro no cadastro:", error.response?.data);
-      return false;
+      return { success: false, error: error.response?.data?.error || "Erro ao criar conta." };
     }
   };
 

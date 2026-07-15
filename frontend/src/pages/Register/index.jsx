@@ -34,7 +34,7 @@ export const Register = () => {
       return;
     }
 
-    const success = await signUp({
+    const resultado = await signUp({
       name,
       email,
       password,
@@ -45,11 +45,11 @@ export const Register = () => {
       plate: temVeiculo ? plate : undefined,
     });
 
-    if (success) {
+    if (resultado.success) {
       alert("Cadastro realizado com sucesso!");
       navigate("/login");
     } else {
-      setError("Erro ao criar conta. Verifique os dados.");
+      setError(resultado.error);
     }
   };
 

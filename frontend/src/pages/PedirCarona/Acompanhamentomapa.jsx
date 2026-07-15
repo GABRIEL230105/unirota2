@@ -113,8 +113,11 @@ export default function AcompanhamentoMapa({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [emViagem, posicaoMotorista?.lat, posicaoMotorista?.lng, pontoAlvo?.lat, pontoAlvo?.lng]);
 
+  // 🔧 CORRIGIDO: texto agora depende do papel do usuário (motorista vê "Localizando passageiro", passageiro vê "Localizando motorista")
   function statusTexto() {
-    if (!temPosicaoMotorista) return "Localizando motorista...";
+    if (!temPosicaoMotorista) {
+      return papel === "motorista" ? "Localizando passageiro..." : "Localizando motorista...";
+    }
     if (emViagem) {
       if (chegouNoAlvo) return "🏁 Chegou ao destino!";
       if (distancia < 1000) return `🚗 Em viagem — ${Math.round(distancia)} m até o destino`;
